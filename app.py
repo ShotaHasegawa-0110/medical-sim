@@ -40,7 +40,16 @@ cases = {
             "吐き気",
             "食欲不振",
             "発症から2日"
-        ]
+        ],
+        "questionnaire": {
+            "氏名": "田中 健太（たなか けんた）",
+            "年齢・性別": "35歳・男性",
+            "来院理由": "お腹が痛くて心配なので診てほしい",
+            "現在の症状": "2日前からお腹が痛い。最初はおへそのあたりだったが、今はお腹の右のほうが痛い。",
+            "既往歴": "特になし",
+            "服薬中の薬": "特になし",
+            "アレルギー": "特になし"
+        }
     },
     "症例2：頭痛を訴える50代女性": {
         "patient_info": """
@@ -76,7 +85,16 @@ cases = {
             "羞明（光がまぶしい）",
             "項部硬直（首の硬さ）",
             "高血圧の既往歴"
-        ]
+        ],
+        "questionnaire": {
+            "氏名": "佐藤 幸子（さとう さちこ）",
+            "年齢・性別": "52歳・女性",
+            "来院理由": "今朝から頭がひどく痛くて、心配になって来た",
+            "現在の症状": "今朝から頭痛がある。今まで経験したことがないくらい痛い。",
+            "既往歴": "高血圧（5年前から通院中）",
+            "服薬中の薬": "血圧の薬（毎日服用）",
+            "アレルギー": "特になし"
+        }
     }
 }
 
@@ -89,7 +107,7 @@ st.caption("AIが演じる患者に問診を行い、診断スキルを磨きま
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "phase" not in st.session_state:
-    st.session_state.phase = "select"  # select → interview → diagnosis → feedback
+    st.session_state.phase = "select"  # select → questionnaire → interview → diagnosis → feedback
 if "selected_case" not in st.session_state:
     st.session_state.selected_case = None
 
@@ -100,10 +118,34 @@ if st.session_state.phase == "select":
         if st.button(case_name, use_container_width=True):
             st.session_state.selected_case = case_name
             st.session_state.messages = []
-            st.session_state.phase = "interview"
+            st.session_state.phase = "questionnaire"
             st.rerun()
 
-# --- フェーズ2：問診 ---
+# --- フェーズ2：問診票確認 ---
+elif st.session_state.phase == "questionnaire":
+    case = cases[st.session_state.selected_case]
+    st.subheader("📋 問診票")
+    st.info("患者が記入した問診票です。内容を確認してから問診を開始してください。")
+
+    q = case["questionnaire"]
+    st.markdown(f"""
+| 項目 | 内容 |
+|------|------|
+| **氏名** | {q["氏名"]} |
+| **年齢・性別** | {q["年齢・性別"]} |
+| **来院理由** | {q["来院理由"]} |
+| **現在の症状** | {q["現在の症状"]} |
+| **既往歴** | {q["既往歴"]} |
+| **服薬中の薬** | {q["服薬中の薬"]} |
+| **アレルギー** | {q["アレルギー"]} |
+""")
+
+    st.divider()
+    if st.button("🗣️ 問診を開始する", type="primary", use_container_width=True):
+        st.session_state.phase = "interview"
+        st.rerun()
+
+# --- フェーズ3：問診 ---
 elif st.session_state.phase == "interview":
     case = cases[st.session_state.selected_case]
     st.subheader(f"🗣️ 問診中：{st.session_state.selected_case}")
@@ -167,14 +209,20 @@ elif st.session_state.phase == "feedback":
         [f"{'学生' if m['role'] == 'user' else '患者'}: {m['content']}" for m in st.session_state.messages]
     )
 
+    q = case["questionnaire"]
+    questionnaire_text = "\n".join([f"・{k}：{v}" for k, v in q.items()])
+
     feedback_prompt = f"""
-あなたは医療教育の専門家です。以下の問診記録と学生の診断を評価してください。
+あなたは医療教育の専門家です。以下の問診票・問診記録・学生の診断を評価してください。
 
 【症例】{st.session_state.selected_case}
 【正解の診断】{case["correct_diagnosis"]}
 【確認すべき重要所見】{", ".join(case["key_findings"])}
 
-【問診記録】
+【問診票（来院時に患者が記入済みの情報）】
+{questionnaire_text}
+
+【問診記録（学生と患者のやり取り）】
 {interview_log}
 
 【学生の診断】{st.session_state.user_diagnosis}
@@ -184,14 +232,17 @@ elif st.session_state.phase == "feedback":
 ## 診断の評価
 学生の診断が正しいかどうかを評価してください。
 
-## 確認できた所見
-問診で確認できた重要所見をリストアップしてください。
+## 問診票から読み取れる情報
+問診票の時点で既に把握できていた情報をまとめてください。
+
+## 問診で新たに確認できた情報
+問診票には記載がなく、問診のやり取りで新たに引き出せた重要所見をリストアップしてください。
 
 ## 確認できなかった所見
 問診で聞き逃した重要所見をリストアップしてください。
 
 ## アドバイス
-問診の進め方について具体的なアドバイスをしてください。
+問診票の活用方法や問診の進め方について具体的なアドバイスをしてください。
 
 ## 総合スコア
 100点満点で採点してください。
@@ -212,7 +263,7 @@ elif st.session_state.phase == "feedback":
     with col1:
         if st.button("🔄 同じ症例をもう一度", use_container_width=True):
             st.session_state.messages = []
-            st.session_state.phase = "interview"
+            st.session_state.phase = "questionnaire"
             st.rerun()
     with col2:
         if st.button("📋 症例選択に戻る", use_container_width=True):
