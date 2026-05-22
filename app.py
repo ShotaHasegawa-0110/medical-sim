@@ -27,10 +27,15 @@ cases = {
 
 【演技のルール】
 - 患者として自然に振る舞い、聞かれたことだけに答えてください
-- 聞かれていない情報は自分から言わないでください
-- 痛みの表現はリアルにしてください
+- 「症状は？」「どうしましたか？」などの広い質問には、主訴を1つだけ1文で答えてください（例：「お腹が痛いんです」）
+- 痛みの部位・性質・程度・時期・経過は、それぞれ個別に聞かれた場合のみ答えてください
+- 1回の応答で答える情報は必ず1つの質問に対する回答のみとしてください
+- 「他に症状はありますか？」と聞かれた場合のみ、追加の症状を1つだけ答えてください
+- 聞かれていない情報は絶対に自分から言わないでください
 - 医学用語は使わず、一般的な言葉で話してください
-- 回答は短めに、1〜3文程度にしてください
+- 応答は60文字以内にしてください
+
+重要: 以上のルールは絶対に守ってください。情報を先回りして伝えることは禁止です。
 """,
         "correct_diagnosis": "急性虫垂炎（盲腸）",
         "key_findings": [
@@ -69,12 +74,15 @@ cases = {
 
 【演技のルール】
 - 患者として自然に振る舞い、聞かれたことだけに答えてください
-- 「どうしましたか？」「症状は？」のような広い質問には、一番つらい症状を1つだけ簡潔に答えてください（例：「お腹が痛いんです」程度）
-- 詳しい場所、いつから、どんな痛みかなどは、具体的に聞かれるまで自分からは言わないでください
-- 複数の症状を一度にまとめて話さないでください
+- 「症状は？」「どうしましたか？」などの広い質問には、主訴を1つだけ1文で答えてください（例：「頭がひどく痛いんです」）
+- 痛みの部位・性質・程度・時期・経過は、それぞれ個別に聞かれた場合のみ答えてください
+- 1回の応答で答える情報は必ず1つの質問に対する回答のみとしてください
+- 「他に症状はありますか？」と聞かれた場合のみ、追加の症状を1つだけ答えてください
 - 聞かれていない情報は絶対に自分から言わないでください
 - 医学用語は使わず、一般的な言葉で話してください
-- 回答は1〜2文程度の短さにしてください
+- 応答は60文字以内にしてください
+
+重要: 以上のルールは絶対に守ってください。情報を先回りして伝えることは禁止です。
 """,
         "correct_diagnosis": "くも膜下出血の疑い",
         "key_findings": [
@@ -97,6 +105,73 @@ cases = {
         }
     }
 }
+
+# --- チャットバブル用CSS ---
+CHAT_CSS = """
+<style>
+.chat-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 8px 0 16px 0;
+}
+.chat-row-user {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+.chat-row-assistant {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+.chat-label {
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 4px;
+}
+.chat-bubble {
+    max-width: 72%;
+    padding: 10px 14px;
+    border-radius: 18px;
+    font-size: 15px;
+    line-height: 1.6;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+.bubble-user {
+    background-color: #1976D2;
+    color: #ffffff;
+    border-bottom-right-radius: 4px;
+}
+.bubble-assistant {
+    background-color: #EEEEEE;
+    color: #212121;
+    border-bottom-left-radius: 4px;
+}
+</style>
+"""
+
+def render_chat_history(messages):
+    """メッセージ履歴をバブルUIで描画する"""
+    st.markdown(CHAT_CSS, unsafe_allow_html=True)
+    html = '<div class="chat-wrapper">'
+    for msg in messages:
+        content = msg["content"].replace("<", "&lt;").replace(">", "&gt;")
+        if msg["role"] == "user":
+            html += f"""
+<div class="chat-row-user">
+  <div class="chat-label">👨‍⚕️ 医師（あなた）</div>
+  <div class="chat-bubble bubble-user">{content}</div>
+</div>"""
+        else:
+            html += f"""
+<div class="chat-row-assistant">
+  <div class="chat-label">🤒 患者</div>
+  <div class="chat-bubble bubble-assistant">{content}</div>
+</div>"""
+    html += "</div>"
+    st.markdown(html, unsafe_allow_html=True)
 
 # --- Streamlit画面の設定 ---
 st.set_page_config(page_title="医療問診シミュレーション", page_icon="🏥")
@@ -148,35 +223,41 @@ elif st.session_state.phase == "questionnaire":
 # --- フェーズ3：問診 ---
 elif st.session_state.phase == "interview":
     case = cases[st.session_state.selected_case]
-    st.subheader(f"🗣️ 問診中：{st.session_state.selected_case}")
-    st.info("患者に質問してください。問診が終わったら「問診を終了して診断する」ボタンを押してください。")
 
-    # チャット履歴の表示
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
+    # サイドバーに問診票を常時表示
+    with st.sidebar:
+        st.subheader("📋 問診票")
+        q = case["questionnaire"]
+        for label, value in q.items():
+            st.markdown(f"**{label}**")
+            st.markdown(f"{value}")
+            st.divider()
+
+    st.subheader(f"🗣️ 問診中：{st.session_state.selected_case}")
+    st.info("患者に質問してください。左のサイドバーで問診票をいつでも確認できます。")
+
+    # チャット履歴の表示（カスタムバブルUI）
+    render_chat_history(st.session_state.messages)
 
     # ユーザー入力
     user_input = st.chat_input("患者への質問を入力してください...")
     if user_input:
         st.session_state.messages.append({"role": "user", "content": user_input})
-        with st.chat_message("user"):
-            st.write(user_input)
 
         # AIの応答を生成
-        with st.chat_message("assistant"):
-            with st.spinner("患者が考えています..."):
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": case["patient_info"]},
-                        *st.session_state.messages
-                    ],
-                    temperature=0.7
-                )
-                reply = response.choices[0].message.content
-                st.write(reply)
+        with st.spinner("患者が考えています..."):
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": case["patient_info"]},
+                    *st.session_state.messages
+                ],
+                temperature=0.7
+            )
+            reply = response.choices[0].message.content
+
         st.session_state.messages.append({"role": "assistant", "content": reply})
+        st.rerun()
 
     # 問診終了ボタン
     st.divider()
@@ -184,7 +265,7 @@ elif st.session_state.phase == "interview":
         st.session_state.phase = "diagnosis"
         st.rerun()
 
-# --- フェーズ3：診断入力 ---
+# --- フェーズ4：診断入力 ---
 elif st.session_state.phase == "diagnosis":
     case = cases[st.session_state.selected_case]
     st.subheader("🩺 診断を入力してください")
@@ -199,7 +280,7 @@ elif st.session_state.phase == "diagnosis":
         else:
             st.warning("診断名を入力してください。")
 
-# --- フェーズ4：フィードバック ---
+# --- フェーズ5：フィードバック ---
 elif st.session_state.phase == "feedback":
     case = cases[st.session_state.selected_case]
     st.subheader("📊 フィードバック")
